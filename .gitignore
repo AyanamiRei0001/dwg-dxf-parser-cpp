@@ -1,0 +1,20 @@
+# CMake and test output
+/build/
+/Testing/
+/cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/compile_commands.json
+
+# Downloaded and locally built LibreDWG dependency
+/third_party/libredwg
+/third_party/libredwg-*/
+
+# Local agent/editor state
+/.agents/
+/.codex/
+.vscode/
+.idea/
+*.swp
+*~

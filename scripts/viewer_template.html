@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CAD Viewer — __TITLE__</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #eee; font-family: -apple-system, sans-serif;
+         overflow: hidden; height: 100vh; }
+  #toolbar {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: #16213e; padding: 8px 16px;
+    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid #0f3460;
+    flex-wrap: wrap;
+  }
+  #toolbar .title { font-weight: bold; font-size: 14px; color: #e94560; }
+  #toolbar .info { font-size: 12px; color: #aaa; }
+  #toolbar button {
+    background: #0f3460; color: #eee; border: 1px solid #1a508b;
+    padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 12px;
+  }
+  #toolbar button:hover { background: #1a508b; }
+  #toolbar span { font-size: 12px; color: #ccc; margin: 0 4px; }
+  #container {
+    position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+    cursor: grab; overflow: hidden; background: #f8f8f8;
+  }
+  #container:active { cursor: grabbing; }
+  #container.panning { cursor: grabbing; }
+  #svg-wrap {
+    transform-origin: 0 0;
+    position: absolute; top: 0; left: 0;
+  }
+  #svg-wrap svg { display: block; }
+  .tooltip {
+    position: fixed; background: rgba(0,0,0,0.85); color: #fff;
+    padding: 6px 10px; border-radius: 4px; font-size: 12px;
+    pointer-events: none; z-index: 200; display: none;
+    white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+
+<div id="toolbar">
+  <span class="title">🏗 CAD Viewer</span>
+  <span class="info" id="fileinfo">__TITLE__</span>
+  <span>|</span>
+  <button onclick="zoomIn()">🔍+</button>
+  <button onclick="zoomOut()">🔍−</button>
+  <button onclick="zoomFit()">⊞ Fit</button>
+  <button onclick="zoomReset()">1:1</button>
+  <span>|</span>
+  <span id="zoomlevel">100%</span>
+  <span>|</span>
+  <span id="coord" style="color:#888;">x: -- y: --</span>
+  <span style="margin-left:auto;font-size:11px;color:#666;">
+    🖱 Scroll=Zoom | Drag=Pan | DoubleClick=Fit
+  </span>
+</div>
+
+<div id="container">
+  <div id="svg-wrap">
+    __SVG_CONTENT__
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+  const container = document.getElementById('container');
+  const svgWrap  = document.getElementById('svg-wrap');
+  const tooltip  = document.getElementById('tooltip');
+
+  let scale = 0.5;
+  let panX = 40, panY = 40;
+  let isPanning = false;
+  let startX, startY, origX, origY;
+
+  function update() {
+    svgWrap.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+    document.getElementById('zoomlevel').textContent = Math.round(scale * 100) + '%';
+  }
+
+  container.addEventListener('wheel', e => {
+    e.preventDefault();
+    const rect  = container.getBoundingClientRect();
+    const mx    = e.clientX - rect.left;
+    const my    = e.clientY - rect.top;
+    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    const newScale = Math.min(50, Math.max(0.01, scale * factor));
+    panX = mx - (mx - panX) * (newScale / scale);
+    panY = my - (my - panY) * (newScale / scale);
+    scale = newScale;
+    update();
+  });
+
+  container.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    isPanning = true;
+    container.classList.add('panning');
+    startX = e.clientX; startY = e.clientY;
+    origX = panX; origY = panY;
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isPanning) {
+      document.getElementById('coord').textContent =
+        `x: ${e.clientX} y: ${e.clientY}`;
+      return;
+    }
+    panX = origX + (e.clientX - startX);
+    panY = origY + (e.clientY - startY);
+    update();
+  });
+
+  window.addEventListener('mouseup', () => {
+    isPanning = false;
+    container.classList.remove('panning');
+  });
+
+  container.addEventListener('dblclick', () => zoomFit());
+
+  function zoomIn()  { scale = Math.min(50, scale * 1.4); update(); }
+  function zoomOut() { scale = Math.max(0.01, scale / 1.4); update(); }
+  function zoomFit() {
+    scale = 0.35; panX = 30; panY = 40; update();
+  }
+  function zoomReset() { scale = 1; panX = 0; panY = 0; update(); }
+
+  update();
+</script>
+</body>
+</html>
