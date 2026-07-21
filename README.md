@@ -2,14 +2,28 @@
 
 C++17 解析库，支持 **DXF** 和 **DWG** CAD 文件，提供统一的 `cad::Drawing` 数据结构。
 
+完整的接口说明、数据模型、坐标约定、渲染行为和扩展实体流程见
+[API 与架构开发指南](docs/API_AND_ARCHITECTURE.md)。README 保留项目概览和常用命令。
+
+## 文档
+
+| 文档 | 内容 |
+|------|------|
+| [API 与架构开发指南](docs/API_AND_ARCHITECTURE.md) | C++ API、`Drawing` 数据模型、DXF/DWG 后端、SVG/Qt 渲染、坐标系、测试和扩展指南 |
+| [README](README.md) | 构建方式、CLI 快速上手和支持的实体 |
+
 ## DWG 双后端架构
 
-DWG 解析支持两种后端，编译时自动选择最优方案：
+DWG 解析支持两种后端，CMake 配置时选择其中一种：
 
 | 后端 | 机制 | 优势 | 劣势 |
 |------|------|------|------|
 | **C API** (推荐) | 直接链接 `libredwg.a`，调用 `dwg_read_file()` | 🚀 性能最优，无子进程开销，内存直接转换 | 需要编译 libredwg 源码 |
 | **CLI** (fallback) | 通过 `popen()` 调用 `dwgread` 子进程 | 📦 系统 `apt install` 即可 | 子进程 + JSON 解析开销 |
+
+当 CMake 找到 libredwg C API 时，构建产物使用 C API；否则，若启用了
+`CAD_USE_LIBREDWG_CLI`，构建产物使用 CLI。该选择发生在**配置/编译期**，C API
+解析失败时不会在运行期自动改走 CLI。
 
 ```
                   ┌─────────────────────────┐
@@ -98,7 +112,7 @@ make -j$(nproc)
 | 选项 | 默认值 | 说明 |
 |------|--------|------|
 | `CAD_USE_LIBREDWG_API` | ON | 启用 libredwg C API 后端 |
-| `CAD_USE_LIBREDWG_CLI` | ON | 当 API 不可用时，回退到 CLI |
+| `CAD_USE_LIBREDWG_CLI` | ON | CMake 未找到 API 时，启用 CLI 后端 |
 | `LIBREDWG_ROOT_DIR` | 空 | 指定 libredwg 源码树或安装路径 |
 | `BUILD_TESTS` | OFF | 构建测试 |
 
@@ -137,6 +151,21 @@ cmake -E chdir build ctest --output-on-failure
 ./build/cad-parser-cli --check-dwg
 ```
 
+### Qt 查看器
+
+在 CMake 找到 Qt5 Widgets 时会生成 `cad-viewer`：
+
+```bash
+./build/cad-viewer drawing.dwg
+
+# 无界面生成 PNG，便于回归比对
+QT_QPA_PLATFORM=offscreen ./build/cad-viewer drawing.dwg \
+  --screenshot preview.png --screenshot-size 1600x1000
+```
+
+查看器支持缩放、拖拽平移、适配视图和图层显隐。有关 CAD 笛卡尔坐标如何映射到
+Qt/SVG 屏幕坐标，以及文本对齐的当前行为，见[开发指南](docs/API_AND_ARCHITECTURE.md#7-坐标系与文本对齐)。
+
 ### C++ API
 
 ```cpp
@@ -146,9 +175,8 @@ cmake -E chdir build ctest --output-on-failure
 cad::ParseResult result;
 cad::Drawing d = cad::parse_dxf_file("floorplan.dxf", {}, &result);
 
-// === DWG 解析（libredwg 后端） ===
+// === DWG 解析（构建时选定的 libredwg 后端） ===
 cad::DwgParseResult dwg_result;
-// 优先使用 C API，不可用时自动回退 CLI
 cad::Drawing dwg = cad::parse_dwg_file("mechanical.dwg", {}, &dwg_result);
 
 // === 自动识别格式 ===
@@ -188,6 +216,8 @@ dwg-dxf-parser-cpp/
 ├── CMakeLists.txt                  # 主构建配置
 ├── cmake/
 │   └── FindLibreDWG.cmake          # libredwg 查找模块
+├── docs/
+│   └── API_AND_ARCHITECTURE.md      # API、架构与开发指南
 ├── scripts/
 │   └── build_libredwg.sh           # libredwg 一键编译脚本
 ├── third_party/                    # 第三方源码目录
