@@ -9,7 +9,11 @@
 #include <QBrush>
 #include <QPainterPath>
 #include <QTextDocument>
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+#include <QStringDecoder>
+#else
 #include <QTextCodec>
+#endif
 #include <QRegularExpression>
 #include <QTimer>
 #include <QImage>
@@ -26,9 +30,20 @@ static QString decodeCadText(const std::string& raw) {
     if (raw.empty()) return QString();
     QString result = QString::fromUtf8(raw.c_str());
     if (result.contains(QChar(0xFFFD))) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+        // Qt6: use QStringConverter
+        auto toUtf16 = QStringDecoder("GBK");
+        if (toUtf16.isValid()) {
+            result = toUtf16(raw.c_str());
+        } else {
+            result = QString::fromLocal8Bit(raw.c_str());
+        }
+#else
+        // Qt5: use QTextCodec
         QTextCodec* gbk = QTextCodec::codecForName("GBK");
         if (gbk) result = gbk->toUnicode(raw.c_str());
         else     result = QString::fromLocal8Bit(raw.c_str());
+#endif
     }
     return result;
 }

@@ -15,6 +15,7 @@ option(CAD_USE_LIBREDWG_CLI  "Use libredwg CLI (dwgread) when the C API is not s
 function(cad_enable_warnings target)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /utf-8)
+        target_compile_definitions(${target} PRIVATE _CRT_SECURE_NO_WARNINGS)
     else()
         target_compile_options(${target} PRIVATE -Wall -Wextra -pedantic)
     endif()
@@ -82,6 +83,7 @@ cad_enable_warnings(cad_parser)
 # ---- CLI demo tool ----
 add_executable(cad-parser-cli src/main.cpp)
 target_link_libraries(cad-parser-cli PRIVATE cad_parser)
+target_include_directories(cad-parser-cli PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 cad_enable_warnings(cad-parser-cli)
 
 # ---- Install ----
@@ -96,33 +98,67 @@ install(DIRECTORY include/ DESTINATION include)
 option(BUILD_QT_VIEWER "Build Qt5 Widgets CAD viewer" ON)
 
 if(BUILD_QT_VIEWER)
-    find_package(Qt5 COMPONENTS Widgets QUIET)
-    if(Qt5_FOUND)
-        message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt5_VERSION})")
+    # Search common Qt installation directories on Windows
+    if(WIN32)
+        set(_qt_hints
+            "D:/Qt"
+            "C:/Qt"
+            "$ENV{LOCALAPPDATA}/Qt"
+            "$ENV{APPDATA}/Qt"
+        )
+        foreach(_hint ${_qt_hints})
+            file(GLOB _qt_dirs "${_hint}/*/*")
+            foreach(_dir ${_qt_dirs})
+                if(IS_DIRECTORY "${_dir}")
+                    list(APPEND CMAKE_PREFIX_PATH "${_dir}")
+                endif()
+            endforeach()
+        endforeach()
+    endif()
 
+    # Try Qt6 first (with forward compatibility), then Qt5
+    find_package(Qt6 COMPONENTS Widgets QUIET)
+    if(Qt6_FOUND)
+        message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt6_VERSION})")
+        set(QT_VERSION_MAJOR 6)
+        set(QT_LIBS Qt6::Widgets)
+    else()
+        find_package(Qt5 COMPONENTS Widgets QUIET)
+        if(Qt5_FOUND)
+            message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt5_VERSION})")
+            set(QT_VERSION_MAJOR 5)
+            set(QT_LIBS Qt5::Widgets)
+        endif()
+    endif()
+
+    if(Qt5_FOUND OR Qt6_FOUND)
         set(QT_VIEWER_SOURCES
             src/qt_viewer/main.cpp
             src/qt_viewer/CadViewer.cpp
         )
 
         add_executable(cad-viewer ${QT_VIEWER_SOURCES})
-        target_link_libraries(cad-viewer PRIVATE cad_parser Qt5::Widgets)
+        target_link_libraries(cad-viewer PRIVATE cad_parser ${QT_LIBS})
         target_include_directories(cad-viewer PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/qt_viewer
         )
         cad_enable_warnings(cad-viewer)
 
         # Qt MOC needs the header
-        set_target_properties(cad-viewer PROPERTIES
-            AUTOMOC ON
-        )
+        set_target_properties(cad-viewer PROPERTIES AUTOMOC ON)
         if(WIN32)
             set_target_properties(cad-viewer PROPERTIES WIN32_EXECUTABLE TRUE)
+        endif()
+        if(QT_VERSION_MAJOR EQUAL 6)
+            target_compile_definitions(cad-viewer PRIVATE CAD_USE_QT6=1)
         endif()
 
         install(TARGETS cad-viewer RUNTIME DESTINATION bin)
     else()
-        message(STATUS "⚠ Qt viewer: DISABLED (Qt5 Widgets not found)")
+        message(STATUS "⚠ Qt viewer: DISABLED (Qt5/Qt6 Widgets not found)")
+        if(WIN32)
+            message(STATUS "  Install Qt5 for Windows: pip install aqtinstall && aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O D:/Qt")
+        endif()
     endif()
 endif()
 

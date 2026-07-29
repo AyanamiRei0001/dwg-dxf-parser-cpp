@@ -28,13 +28,16 @@ find_path(LIBREDWG_INCLUDE_DIR
 
 find_library(LIBREDWG_LIBRARY
     NAMES redwg dwg libredwg
-    PATH_SUFFIXES lib lib64 bin src/.libs
+    PATH_SUFFIXES lib lib64 bin src/.libs build/Release build/Debug build/RelWithDebInfo
     HINTS ${LIBREDWG_ROOT_DIR}
           ${LIBREDWG_ROOT_DIR}/lib
           ${LIBREDWG_ROOT_DIR}/lib64
           ${LIBREDWG_ROOT_DIR}/bin
           ${LIBREDWG_ROOT_DIR}/src/.libs
+          ${LIBREDWG_ROOT_DIR}/build/Release
+          ${LIBREDWG_ROOT_DIR}/build/Debug
           ${CMAKE_CURRENT_LIST_DIR}/../third_party/libredwg/src/.libs
+          ${CMAKE_CURRENT_LIST_DIR}/../third_party/libredwg/build/Release
     DOC "libredwg library"
 )
 

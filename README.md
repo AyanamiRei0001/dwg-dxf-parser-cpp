@@ -114,32 +114,91 @@ cmake --build build --parallel
 
 ### Windows：Visual Studio 2022 / MSVC
 
-先安装 CMake 3.16+ 和 Visual Studio 的“Desktop development with C++”工作负载。DXF 核心、
-SVG 导出、CLI 和测试不需要任何第三方 CAD 依赖：
+先安装 CMake 3.16+ 和 Visual Studio 的”Desktop development with C++”工作负载。
+
+#### 零依赖（仅 DXF + DWG CLI fallback）
+
+DXF 核心、SVG 导出、CLI 和测试不需要任何第三方 CAD 依赖：
 
 ```powershell
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
   -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=OFF
 cmake --build build --config Release --parallel
 cmake -E chdir build ctest -C Release --output-on-failure
 .\build\Release\cad-parser-cli.exe demo\sample.dxf
 ```
 
+#### 完整构建（DXF + DWG C API + Qt 查看器）
+
+**1. 编译 libredwg（DWG 原生支持）**
+
+仓库 `third_party/libredwg/` 已包含源码，直接用 MSVC 编译：
+
+```powershell
+cd third_party\libredwg
+cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
+  -DBUILD_SHARED_LIBS=ON
+cmake --build build --config Release --parallel
+```
+
+产物：`build/Release/libredwg.dll` + `libredwg.lib`
+
+**2. 安装 Qt5（cad-viewer 可视化）**
+
+```powershell
+pip install aqtinstall
+python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O D:/Qt
+```
+
+**3. 构建全部目标**
+
+```powershell
+cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
+  -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=ON `
+  -DCMAKE_PREFIX_PATH=”D:/Qt/5.15.2/msvc2019_64” `
+  -DLIBREDWG_ROOT_DIR=”third_party/libredwg”
+cmake --build build --config Release --parallel
+```
+
+**4. 部署运行时 DLL（仅需首次或 DLL 变更后）**
+
+```powershell
+# 将需要的 DLL 复制到 exe 旁
+copy third_party\libredwg\build\Release\libredwg.dll build\Release\
+copy D:\Qt\5.15.2\msvc2019_64\bin\Qt5Core.dll build\Release\
+copy D:\Qt\5.15.2\msvc2019_64\bin\Qt5Gui.dll build\Release\
+copy D:\Qt\5.15.2\msvc2019_64\bin\Qt5Widgets.dll build\Release\
+mkdir build\Release\platforms
+copy D:\Qt\5.15.2\msvc2019_64\plugins\platforms\qwindows.dll build\Release\platforms\
+```
+
+或者让 CMake 在构建后自动复制 — 参考 `scripts/build_windows.ps1` 脚本。
+
+**5. 验证**
+
+```powershell
+# 运行测试
+cmake -E chdir build ctest -C Release --output-on-failure
+
+# DWG 解析
+.\build\Release\cad-parser-cli.exe d:\path\to\drawing.dwg --count
+
+# SVG 导出
+.\build\Release\cad-parser-cli.exe demo\sample.dxf --svg output.svg
+
+# HTML 交互式查看器
+.\build\Release\cad-parser-cli.exe demo\sample.dxf --html viewer.html
+
+# Qt 查看器（无界面截图，用于自动化回归比对）
+.\build\Release\cad-viewer.exe demo\sample.dxf --screenshot preview.png
+```
+
 也可以使用仓库内脚本执行同一流程：
 
 ```powershell
-.\scripts\build_windows.ps1
+.\scripts\build_windows.ps1 -EnableQtViewer -QtDir “D:/Qt/5.15.2/msvc2019_64” `
+  -LibreDwgRoot “third_party/libredwg”
 ```
-
-要在 Windows 解析 DWG，请任选一种后端：
-
-- 将兼容的 LibreDWG C API 头文件和库安装在本机，并在配置时传入
-  `-DLIBREDWG_ROOT_DIR=C:\path\to\libredwg`。
-- 将 `dwgread.exe` 放入 `PATH`，或在 C++ 中设置 `cad::DwgParserOptions::dwgread_path`。
-
-Qt 查看器仍使用 Qt5 Widgets。安装匹配 MSVC 架构的 Qt5 后，去掉
-`-DBUILD_QT_VIEWER=OFF`，并在需要时设置
-`-DCMAKE_PREFIX_PATH=C:\Qt\5.15.2\msvc2019_64`。
 
 ### CMake 选项
 
@@ -148,7 +207,9 @@ Qt 查看器仍使用 Qt5 Widgets。安装匹配 MSVC 架构的 Qt5 后，去掉
 | `CAD_USE_LIBREDWG_API` | ON | 启用 libredwg C API 后端 |
 | `CAD_USE_LIBREDWG_CLI` | ON | CMake 未找到 API 时，启用 CLI 后端 |
 | `LIBREDWG_ROOT_DIR` | 空 | 指定 libredwg 源码树或安装路径 |
+| `BUILD_QT_VIEWER` | ON | 构建 Qt 查看器（需要 Qt5 或 Qt6） |
 | `BUILD_TESTS` | OFF | 构建测试 |
+| `CMAKE_PREFIX_PATH` | 空 | Qt 安装路径，如 `D:/Qt/5.15.2/msvc2019_64` |
 
 ### 测试
 
