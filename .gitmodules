@@ -1,0 +1,5 @@
+# The superproject pins this submodule to the LibreDWG 0.13.4 release commit.
+[submodule "third_party/libredwg"]
+	path = third_party/libredwg
+	url = https://github.com/LibreDWG/libredwg.git
+	shallow = true

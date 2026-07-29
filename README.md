@@ -118,6 +118,7 @@ cmake --build build --parallel
 SVG 导出、CLI 和测试不需要任何第三方 CAD 依赖：
 
 ```powershell
+git submodule update --init --recursive --depth 1
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
   -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=OFF
 cmake --build build --config Release --parallel
@@ -128,7 +129,15 @@ cmake -E chdir build ctest -C Release --output-on-failure
 也可以使用仓库内脚本执行同一流程：
 
 ```powershell
+git submodule update --init --recursive --depth 1
 .\scripts\build_windows.ps1
+```
+
+`third_party/libredwg` 固定在 GNU LibreDWG `0.13.4` release（提交
+`e3774bd4020fcfebb68150361db74b8b34d170fe`），不会跟随其 `main` 分支。首次克隆仓库时也可以直接使用：
+
+```powershell
+git clone --recurse-submodules --shallow-submodules git@github.com:AyanamiRei0001/dwg-dxf-parser-cpp.git
 ```
 
 要在 Windows 解析 DWG，请任选一种后端：

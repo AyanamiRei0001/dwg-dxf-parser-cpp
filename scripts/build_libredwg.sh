@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # =============================================================================
-# build_libredwg.sh — Clone and build GNU LibreDWG as a static library
+# build_libredwg.sh — Fetch and build GNU LibreDWG as a static library
 # =============================================================================
 #
-# This script fetches libredwg from source, configures and builds it
-# as a static library that can be linked into cad-parser.
+# This script initializes the pinned libredwg submodule when using the default
+# path, then configures and builds it as a static library that can be linked
+# into cad-parser.
 #
 # Usage:
 #   ./scripts/build_libredwg.sh              # Build in third_party/libredwg
@@ -20,18 +21,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${1:-${PROJECT_DIR}/third_party/libredwg}"
 
-LIBREDWG_REPO="https://git.savannah.gnu.org/git/libredwg.git"
+LIBREDWG_REPO="https://github.com/LibreDWG/libredwg.git"
+LIBREDWG_VERSION="0.13.4"
 
 echo "=== GNU LibreDWG Build Helper ==="
 echo "Project dir: ${PROJECT_DIR}"
 echo "Target dir:  ${BUILD_DIR}"
 echo ""
 
-# ---- Clone ----
+# ---- Fetch source ----
 if [ ! -d "${BUILD_DIR}" ]; then
-    echo "[1/4] Cloning libredwg from ${LIBREDWG_REPO} ..."
-    mkdir -p "$(dirname "${BUILD_DIR}")"
-    git clone --depth 1 "${LIBREDWG_REPO}" "${BUILD_DIR}"
+    if [ "${BUILD_DIR}" = "${PROJECT_DIR}/third_party/libredwg" ] && [ -f "${PROJECT_DIR}/.gitmodules" ]; then
+        echo "[1/4] Initializing the pinned LibreDWG ${LIBREDWG_VERSION} submodule ..."
+        git -C "${PROJECT_DIR}" submodule update --init --depth 1 -- third_party/libredwg
+    else
+        echo "[1/4] Cloning LibreDWG ${LIBREDWG_VERSION} from ${LIBREDWG_REPO} ..."
+        mkdir -p "$(dirname "${BUILD_DIR}")"
+        git clone --depth 1 --branch "${LIBREDWG_VERSION}" "${LIBREDWG_REPO}" "${BUILD_DIR}"
+    fi
 else
     echo "[1/4] Using existing source at ${BUILD_DIR}"
 fi

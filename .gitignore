@@ -7,8 +7,7 @@
 /cmake_install.cmake
 /compile_commands.json
 
-# Downloaded and locally built LibreDWG dependency
-/third_party/libredwg
+# Locally built LibreDWG variants other than the tracked source submodule
 /third_party/libredwg-*/
 
 # Local agent/editor state
