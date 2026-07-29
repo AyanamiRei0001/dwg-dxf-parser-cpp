@@ -25,6 +25,7 @@ DWG ──> LibreDWG C API 或 dwgread ─┼──> cad::Drawing
 
 - DXF 输入是 ASCII DXF，头文件声明的版本范围为 R12 至 R2018。
 - DWG 是通过 GNU LibreDWG 读取的二进制格式；可读取的版本和字段完整度取决于该依赖。
+- 核心 DXF、SVG、CLI 与回归测试支持 Linux 和 Windows（MSVC）。Windows 的 DWG 能力仍取决于可用的 LibreDWG C API 或 `dwgread.exe`。
 - 解析器保留原始几何单位，不进行毫米、米、英寸等单位换算。
 - 核心几何坐标采用 CAD 笛卡尔坐标：X 向右、Y 向上；只有显示层会翻转 Y 轴。
 - 未识别的 DXF 实体会跳过，不会让整个文件失败。调用方应依据状态码和实体统计判断结果是否适合业务使用。
@@ -195,7 +196,7 @@ DXF 解析会处理 `HEADER`、`TABLES`、`BLOCKS` 和 `ENTITIES` 段。`MTEXT` 
 
 ```cpp
 cad::DwgParserOptions options;
-options.dwgread_path = "/opt/libredwg/bin/dwgread";  // 只在 CLI 后端有意义
+options.dwgread_path = "path/to/dwgread";  // Windows 上通常是 dwgread.exe
 options.output_format = "json";                      // CLI 默认值
 
 cad::DwgParseResult result;
@@ -211,7 +212,7 @@ if (result != cad::DwgParseResult::Success) {
 |------|------|
 | `parse_dwg_file` | 通过当前构建选择的后端解析完整 DWG |
 | `peek_dwg_header` | 获取 DWG 元信息；CLI 路径仍需运行 `dwgread` 并读取 JSON |
-| `is_libredwg_available` | API 构建时检查已链接后端，CLI 构建时在 PATH/常见位置寻找 `dwgread` |
+| `is_libredwg_available` | API 构建时检查已链接后端，CLI 构建时在 PATH 寻找 `dwgread`（Windows 也查找 `dwgread.exe`） |
 | `to_string(DwgParseResult)` | 将 DWG 状态转为可打印文本 |
 
 `DwgParseResult` 除一般文件/格式错误外，还可报告 `LibreDwgNotFound` 和 `LibreDwgError`。
@@ -230,6 +231,10 @@ C API 直接调用 `dwg_read_file()` 并把 LibreDWG 对象转换为统一模型
 要求较高的场景。CLI 后端启动 `dwgread` 子进程，再解析 JSON 或转换出的 DXF。两者不是运行期主备：
 若最终可执行文件已选中 C API，它遇到解析失败不会再调用 CLI。
 
+Linux 可用仓库内的 `scripts/build_libredwg.sh` 构建 C API。该脚本依赖 Bash/Autotools，不适用于
+原生 Windows；Windows 使用预编译的兼容头文件和库并设置 `LIBREDWG_ROOT_DIR`，或把
+`dwgread.exe` 放入 `PATH`。CLI 后端的进程调用和路径搜索均已处理 Linux/Windows 差异。
+
 建议通过 CMake 输出中的 `DWG backend:` 确认实际选择，并用以下命令检查：
 
 ```bash
@@ -240,7 +245,7 @@ C API 直接调用 `dwg_read_file()` 并把 LibreDWG 对象转换为统一模型
 
 | 字段 | 当前行为 |
 |------|----------|
-| `dwgread_path` | 仅 CLI 后端使用。为空时在 PATH 和几个常见位置寻找 `dwgread`。 |
+| `dwgread_path` | 仅 CLI 后端使用。为空时在 PATH 中寻找 `dwgread`；Windows 同时寻找 `dwgread.exe`。Linux 还会检查常见系统安装位置。 |
 | `output_format` | 仅 CLI 后端使用。`json` 与 `dxf` 有实现：前者走内置 JSON 转换，后者先由 `dwgread` 输出 DXF 再复用 DXF 解析器。`svg` 虽出现在头文件注释中，但当前没有对应解析分支，不应传入。 |
 | `on_progress` | 类型已声明，但当前 C API 和 CLI 实现均未触发回调。 |
 
@@ -389,9 +394,14 @@ Qt 渲染器与 SVG 一样会处理层色、BYLAYER/BYBLOCK 和嵌套块，但�
 
 ```bash
 cmake -S . -B build -DBUILD_TESTS=ON
-cmake --build build -j"$(nproc)"
-ctest --test-dir build --output-on-failure
+cmake --build build --parallel
+cmake -E chdir build ctest --output-on-failure
 ```
+
+Windows 可在 Developer PowerShell 中执行 `./scripts/build_windows.ps1`，或使用
+`cmake -G "Visual Studio 17 2022" -A x64` 配置后再以 `--config Release` 构建和测试。
+`.github/workflows/build.yml` 会在 GitHub Actions 的 Ubuntu 和 Windows 运行器上，以禁用
+LibreDWG C API 和 Qt 的核心配置持续编译并运行这些测试。
 
 现有测试覆盖 DXF 基础解析、重型多段线转换、曲线 bulge、块、MTEXT 拼接、样条节点、HATCH 边界、
 `TEXT` 第二对齐点、SVG 颜色/块变换/文本清洗以及若干非法输入。
@@ -413,5 +423,6 @@ ctest --test-dir build --output-on-failure
 - SVG 导出头文件尚未随安装包导出。
 - 样条、图案填充、标注和部分 MTEXT/TEXT 对齐为近似显示，不应作为 CAD 编辑器级保真输出。
 - 当前 Qt 界面没有显式坐标轴/网格，也没有鼠标 CAD 坐标读数。
+- Windows 上不会自动下载或编译 LibreDWG；需要由应用部署方提供匹配工具链的 C API 库，或提供 `dwgread.exe`。
 
 这些限制适合作为后续迭代的任务清单。新增功能时请同时更新本指南、README 中的支持矩阵和对应回归测试。

@@ -251,8 +251,8 @@ Entity parse_ellipse(const std::map<int, std::string>& props) {
     e.axis_ratio         = get_double(props, 40, 1.0);
 
     // Parametric angles (code 41, 42) — only for partial ellipses
-    if (props.count(41)) e.start_angle = get_double(props, 41) * 180.0 / M_PI;
-    if (props.count(42)) e.end_angle   = get_double(props, 42) * 180.0 / M_PI;
+    if (props.count(41)) e.start_angle = get_double(props, 41) * 180.0 / kPi;
+    if (props.count(42)) e.end_angle   = get_double(props, 42) * 180.0 / kPi;
     return e;
 }
 

@@ -10,7 +10,15 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # ---- Options ----
 option(CAD_USE_LIBREDWG_API "Use libredwg C API for DWG parsing (instead of CLI subprocess)" ON)
-option(CAD_USE_LIBREDWG_CLI  "Fallback to libredwg CLI (dwgread) when API unavailable" ON)
+option(CAD_USE_LIBREDWG_CLI  "Use libredwg CLI (dwgread) when the C API is not selected" ON)
+
+function(cad_enable_warnings target)
+    if(MSVC)
+        target_compile_options(${target} PRIVATE /W4 /utf-8)
+    else()
+        target_compile_options(${target} PRIVATE -Wall -Wextra -pedantic)
+    endif()
+endfunction()
 
 # ---- Library sources ----
 set(CAD_PARSER_SOURCES
@@ -54,6 +62,12 @@ target_include_directories(cad_parser PUBLIC
     $<INSTALL_INTERFACE:include>
 )
 
+# GCC 8 provides C++17 filesystem in a separate compatibility library. Newer
+# GCC, Clang, and MSVC link it as part of the standard library.
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 9)
+    target_link_libraries(cad_parser PUBLIC stdc++fs)
+endif()
+
 # libredwg headers and link
 if(CAD_DWG_BACKEND STREQUAL "api")
     target_include_directories(cad_parser PRIVATE ${LIBREDWG_INCLUDE_DIRS})
@@ -63,11 +77,12 @@ elseif(CAD_DWG_BACKEND STREQUAL "cli")
     target_compile_definitions(cad_parser PRIVATE CAD_HAS_LIBREDWG_CLI=1)
 endif()
 
-target_compile_options(cad_parser PRIVATE -Wall -Wextra -pedantic)
+cad_enable_warnings(cad_parser)
 
 # ---- CLI demo tool ----
 add_executable(cad-parser-cli src/main.cpp)
 target_link_libraries(cad-parser-cli PRIVATE cad_parser)
+cad_enable_warnings(cad-parser-cli)
 
 # ---- Install ----
 install(TARGETS cad_parser cad-parser-cli
@@ -95,17 +110,19 @@ if(BUILD_QT_VIEWER)
         target_include_directories(cad-viewer PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/qt_viewer
         )
-        target_compile_options(cad-viewer PRIVATE -Wall -Wextra)
+        cad_enable_warnings(cad-viewer)
 
         # Qt MOC needs the header
         set_target_properties(cad-viewer PROPERTIES
             AUTOMOC ON
-            WIN32_EXECUTABLE_ON_WIN32 TRUE
         )
+        if(WIN32)
+            set_target_properties(cad-viewer PROPERTIES WIN32_EXECUTABLE TRUE)
+        endif()
 
         install(TARGETS cad-viewer RUNTIME DESTINATION bin)
     else()
-        message(STATUS "⚠ Qt viewer: DISABLED (Qt5 not found). Install qt5-default or qtbase5-dev")
+        message(STATUS "⚠ Qt viewer: DISABLED (Qt5 Widgets not found)")
     endif()
 endif()
 
@@ -120,6 +137,7 @@ endif()
 message(STATUS "")
 message(STATUS "cad-parser configuration summary:")
 message(STATUS "  C++ Standard:  17")
+message(STATUS "  Host platform: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "  DWG backend:   ${CAD_DWG_BACKEND}")
 message(STATUS "  Qt viewer:     ${Qt5_FOUND}")
 message(STATUS "  Install prefix: ${CMAKE_INSTALL_PREFIX}")

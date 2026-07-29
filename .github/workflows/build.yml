@@ -1,0 +1,30 @@
+name: Build and test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  core:
+    name: ${{ matrix.os }} core build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: >-
+          cmake -S . -B build
+          -DBUILD_TESTS=ON
+          -DBUILD_QT_VIEWER=OFF
+          -DCAD_USE_LIBREDWG_API=OFF
+
+      - name: Build
+        run: cmake --build build --config Debug --parallel
+
+      - name: Test
+        run: cmake -E chdir build ctest -C Debug --output-on-failure

@@ -25,10 +25,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <sstream>
 #include <string>
+#include <system_error>
+#include <vector>
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 namespace cad {
 
@@ -47,12 +54,50 @@ std::string trim_dwg(std::string s) {
     return s.substr(start, end - start + 1);
 }
 
-// Run a command and capture stdout.
-// Returns exit code; stdout content is written to `output`.
+using PipeCloser = int (*)(FILE*);
+
+FILE* open_process_pipe(const char* command) {
+#ifdef _WIN32
+    return _popen(command, "r");
+#else
+    return popen(command, "r");
+#endif
+}
+
+int close_process_pipe(FILE* pipe) {
+#ifdef _WIN32
+    return _pclose(pipe);
+#else
+    return pclose(pipe);
+#endif
+}
+
+std::string shell_quote(const std::string& value) {
+#ifdef _WIN32
+    // _popen invokes cmd.exe. Quoting is sufficient for normal executable and
+    // drawing paths, including paths containing spaces.
+    std::string quoted = "\"";
+    for (char c : value) {
+        if (c == '\"') quoted += "\\\"";
+        else quoted += c;
+    }
+    return quoted + "\"";
+#else
+    std::string quoted = "'";
+    for (char c : value) {
+        if (c == '\'') quoted += "'\\''";
+        else quoted += c;
+    }
+    return quoted + "'";
+#endif
+}
+
+// Run a command and capture stdout. Both POSIX popen/pclose and the MSVC
+// _popen/_pclose equivalents use a shell, but report process status differently.
 int run_command(const std::string& cmd, std::string& output) {
     std::array<char, 4096> buffer{};
-    std::unique_ptr<FILE, decltype(&pclose)> pipe(
-        popen(cmd.c_str(), "r"), pclose);
+    std::unique_ptr<FILE, PipeCloser> pipe(open_process_pipe(cmd.c_str()),
+                                            close_process_pipe);
 
     if (!pipe) return -1;
 
@@ -60,20 +105,77 @@ int run_command(const std::string& cmd, std::string& output) {
         output += buffer.data();
     }
 
-    // pclose returns the wait status; extract exit code
-    int status = pclose(pipe.release());
+    int status = close_process_pipe(pipe.release());
     if (status == -1) return -1;
+#ifdef _WIN32
+    // _pclose returns the child process exit code directly.
+    return status;
+#else
+    // POSIX pclose returns a wait status.
     if (WIFEXITED(status)) return WEXITSTATUS(status);
     return -1;
+#endif
 }
 
-// Try to find dwgread in common locations.
+bool is_regular_file_path(const std::filesystem::path& path) {
+    std::error_code error;
+    return std::filesystem::is_regular_file(path, error) && !error;
+}
+
+std::string remove_surrounding_quotes(std::string value) {
+    value = trim_dwg(std::move(value));
+    if (value.size() >= 2 && value.front() == '\"' && value.back() == '\"') {
+        return value.substr(1, value.size() - 2);
+    }
+    return value;
+}
+
+std::string find_dwgread_on_path(const std::vector<std::string>& filenames) {
+    const char* raw_path = std::getenv("PATH");
+    if (!raw_path) return "";
+
+#ifdef _WIN32
+    constexpr char separator = ';';
+#else
+    constexpr char separator = ':';
+#endif
+
+    std::string path_list(raw_path);
+    size_t begin = 0;
+    while (begin <= path_list.size()) {
+        const size_t end = path_list.find(separator, begin);
+        std::string entry = remove_surrounding_quotes(
+            path_list.substr(begin, end == std::string::npos ? std::string::npos : end - begin));
+        const std::filesystem::path directory = entry.empty() ? "." : entry;
+        for (const auto& filename : filenames) {
+            const std::filesystem::path candidate = directory / filename;
+            if (is_regular_file_path(candidate)) return candidate.string();
+        }
+        if (end == std::string::npos) break;
+        begin = end + 1;
+    }
+
+    return "";
+}
+
+// Try to find dwgread in PATH, then in Unix package locations. Windows uses
+// dwgread.exe from PATH or an explicit DwgParserOptions::dwgread_path.
 std::string find_dwgread(const std::string& explicit_path) {
     if (!explicit_path.empty()) return explicit_path;
 
-    // Check common paths
+    std::vector<std::string> names;
+#ifdef _WIN32
+    names = {"dwgread.exe", "dwgread"};
+#else
+    names = {"dwgread"};
+#endif
+
+    if (const std::string found = find_dwgread_on_path(names); !found.empty()) {
+        return found;
+    }
+
+#ifndef _WIN32
     static const char* candidates[] = {
-        "dwgread",
         "/usr/bin/dwgread",
         "/usr/local/bin/dwgread",
         "/opt/libredwg/bin/dwgread",
@@ -81,14 +183,9 @@ std::string find_dwgread(const std::string& explicit_path) {
     };
 
     for (const auto* path : candidates) {
-        std::string check_cmd = std::string("which \"") + path + "\" 2>/dev/null";
-        std::string result;
-        int rc = run_command(check_cmd, result);
-        if (rc == 0 && !result.empty()) {
-            std::string found = trim_dwg(result);
-            if (!found.empty()) return found;
-        }
+        if (is_regular_file_path(path)) return path;
     }
+#endif
 
     return "";
 }
@@ -500,7 +597,7 @@ bool is_libredwg_available(std::string* out_version) {
 
     if (out_version) {
         std::string output;
-        int rc = run_command(dwgread + " --version 2>&1", output);
+        int rc = run_command(shell_quote(dwgread) + " --version 2>&1", output);
         if (rc == 0) {
             *out_version = trim_dwg(output);
         } else {
@@ -545,7 +642,8 @@ Drawing parse_dwg_file(const std::string& filepath,
 
     if (output_format == "json") {
         // Use dwgread -O json
-        std::string cmd = dwgread_path + " -O json \"" + filepath + "\" 2>&1";
+        std::string cmd = shell_quote(dwgread_path) + " -O json " +
+                          shell_quote(filepath) + " 2>&1";
         int rc = run_command(cmd, json_output);
         if (rc != 0) {
             if (out_result) *out_result = DwgParseResult::LibreDwgError;
@@ -558,7 +656,8 @@ Drawing parse_dwg_file(const std::string& filepath,
 
     } else if (output_format == "dxf") {
         // Use dwgread -O dxf to convert DWG → DXF, then parse with our DXF parser
-        std::string cmd = dwgread_path + " -O dxf \"" + filepath + "\" 2>&1";
+        std::string cmd = shell_quote(dwgread_path) + " -O dxf " +
+                          shell_quote(filepath) + " 2>&1";
         int rc = run_command(cmd, json_output); // reuse json_output as dxf string
         if (rc != 0) {
             if (out_result) *out_result = DwgParseResult::LibreDwgError;
@@ -598,7 +697,8 @@ DrawingInfo peek_dwg_header(const std::string& filepath,
     }
 
     std::string json_output;
-    std::string cmd = dwgread_path + " -O json \"" + filepath + "\" 2>&1";
+    std::string cmd = shell_quote(dwgread_path) + " -O json " +
+                      shell_quote(filepath) + " 2>&1";
     int rc = run_command(cmd, json_output);
     if (rc != 0) {
         if (out_result) *out_result = DwgParseResult::LibreDwgError;

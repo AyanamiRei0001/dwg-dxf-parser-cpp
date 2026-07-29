@@ -1,6 +1,8 @@
 # CAD Parser — C++ Demo Library
 
 C++17 解析库，支持 **DXF** 和 **DWG** CAD 文件，提供统一的 `cad::Drawing` 数据结构。
+核心 DXF/SVG/CLI 可在 Linux 和 Windows 上构建；DWG 解析按平台上可用的 LibreDWG C API
+或 `dwgread` 工具启用。
 
 完整的接口说明、数据模型、坐标约定、渲染行为和扩展实体流程见
 [API 与架构开发指南](docs/API_AND_ARCHITECTURE.md)。README 保留项目概览和常用命令。
@@ -19,7 +21,7 @@ DWG 解析支持两种后端，CMake 配置时选择其中一种：
 | 后端 | 机制 | 优势 | 劣势 |
 |------|------|------|------|
 | **C API** (推荐) | 直接链接 `libredwg.a`，调用 `dwg_read_file()` | 🚀 性能最优，无子进程开销，内存直接转换 | 需要编译 libredwg 源码 |
-| **CLI** (fallback) | 通过 `popen()` 调用 `dwgread` 子进程 | 📦 系统 `apt install` 即可 | 子进程 + JSON 解析开销 |
+| **CLI** (fallback) | 通过跨平台子进程管道调用 `dwgread` / `dwgread.exe` | 📦 无需链接 C API | 子进程 + JSON 解析开销 |
 
 当 CMake 找到 libredwg C API 时，构建产物使用 C API；否则，若启用了
 `CAD_USE_LIBREDWG_CLI`，构建产物使用 CLI。该选择发生在**配置/编译期**，C API
@@ -45,12 +47,12 @@ DWG 解析支持两种后端，CMake 配置时选择其中一种：
               ▼                               ▼
     ┌──────────────────┐          ┌──────────────────┐
     │ dwg_api_impl.cpp │          │ dwgread CLI      │
-    │ (libredwg C API) │          │ (popen 子进程)   │
+    │ (libredwg C API) │          │ (子进程管道)      │
     │ #include <dwg.h> │          │ + mini JSON解析  │
     └────────┬─────────┘          └──────────────────┘
              │
     ┌────────┴─────────┐
-    │  libredwg.a      │
+    │ libredwg (.a/.lib)│
     │  (第三方静态库)   │
     └──────────────────┘
 ```
@@ -76,19 +78,19 @@ DWG 解析支持两种后端，CMake 配置时选择其中一种：
 
 ## 编译
 
-### 方式一：纯 DXF + DWG CLI fallback（无需编译 libredwg）
+### Linux：纯 DXF + DWG CLI fallback（无需编译 libredwg）
 
 ```bash
 cd dwg-dxf-parser-cpp
 mkdir build && cd build
 cmake ..
-make -j$(nproc)
+cmake --build build --parallel
 
 # DWG 需要系统安装 libredwg-tools
 sudo apt install libredwg-tools  # Ubuntu/Debian
 ```
 
-### 方式二：libredwg C API 源码集成（推荐，性能最优）
+### Linux：libredwg C API 源码集成（推荐，性能最优）
 
 ```bash
 cd dwg-dxf-parser-cpp
@@ -99,13 +101,45 @@ cd dwg-dxf-parser-cpp
 # 2. 构建 cad-parser，指定 libredwg 路径
 mkdir build && cd build
 cmake .. -DLIBREDWG_ROOT_DIR=../third_party/libredwg
-make -j$(nproc)
+cmake --build build --parallel
 ```
 
 `build_libredwg.sh` 会自动：
 1. `git clone` libredwg 到 `third_party/libredwg/`
 2. 运行 `autogen.sh` → `./configure --disable-bindings --enable-static`
 3. 编译出 `src/.libs/libredwg.a`
+
+`scripts/build_libredwg.sh` 使用 Autotools 和 Bash，适用于 Linux/Unix 环境。Windows 请使用
+预编译的 LibreDWG C API，或安装 `dwgread.exe` 后使用 CLI 后端。
+
+### Windows：Visual Studio 2022 / MSVC
+
+先安装 CMake 3.16+ 和 Visual Studio 的“Desktop development with C++”工作负载。DXF 核心、
+SVG 导出、CLI 和测试不需要任何第三方 CAD 依赖：
+
+```powershell
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+  -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=OFF
+cmake --build build --config Release --parallel
+cmake -E chdir build ctest -C Release --output-on-failure
+.\build\Release\cad-parser-cli.exe demo\sample.dxf
+```
+
+也可以使用仓库内脚本执行同一流程：
+
+```powershell
+.\scripts\build_windows.ps1
+```
+
+要在 Windows 解析 DWG，请任选一种后端：
+
+- 将兼容的 LibreDWG C API 头文件和库安装在本机，并在配置时传入
+  `-DLIBREDWG_ROOT_DIR=C:\path\to\libredwg`。
+- 将 `dwgread.exe` 放入 `PATH`，或在 C++ 中设置 `cad::DwgParserOptions::dwgread_path`。
+
+Qt 查看器仍使用 Qt5 Widgets。安装匹配 MSVC 架构的 Qt5 后，去掉
+`-DBUILD_QT_VIEWER=OFF`，并在需要时设置
+`-DCMAKE_PREFIX_PATH=C:\Qt\5.15.2\msvc2019_64`。
 
 ### CMake 选项
 
@@ -120,7 +154,7 @@ make -j$(nproc)
 
 ```bash
 cmake -S . -B build -DBUILD_TESTS=ON
-cmake --build build -j$(nproc)
+cmake --build build --parallel
 cmake -E chdir build ctest --output-on-failure
 ```
 
@@ -218,8 +252,11 @@ dwg-dxf-parser-cpp/
 │   └── FindLibreDWG.cmake          # libredwg 查找模块
 ├── docs/
 │   └── API_AND_ARCHITECTURE.md      # API、架构与开发指南
+├── .github/workflows/
+│   └── build.yml                    # Linux / Windows 核心构建与测试
 ├── scripts/
-│   └── build_libredwg.sh           # libredwg 一键编译脚本
+│   ├── build_libredwg.sh           # libredwg 一键编译脚本
+│   └── build_windows.ps1            # Windows 配置、构建和测试脚本
 ├── third_party/                    # 第三方源码目录
 │   └── libredwg/                   # (git clone 后出现)
 ├── include/cad_parser/
@@ -277,7 +314,7 @@ dwg_free(&dwg_data);
 
 | 对比维度 | C API | CLI |
 |----------|-------|-----|
-| 数据通道 | 内存直接访问 | `popen()` + JSON 文本 |
+| 数据通道 | 内存直接访问 | 子进程管道 + JSON 文本 |
 | 精度 | 二进制 double，无损 | JSON 序列化可能有精度损失 |
 | 性能 | 单次遍历，O(n) | 子进程 + JSON 解析 |
 | 部署 | 链接静态库，单文件 | 依赖 `dwgread` 在 PATH |

@@ -278,8 +278,13 @@ int main(int argc, char* argv[]) {
             std::cout << "  ✅ Available: " << version << "\n";
         } else {
             std::cout << "  ❌ Not found.\n"
+#ifdef _WIN32
+                      << "  Install GNU LibreDWG for Windows and put dwgread.exe on PATH,\n"
+                      << "  or set cad::DwgParserOptions::dwgread_path in your C++ application.\n";
+#else
                       << "  Install: apt install libredwg-tools  (Ubuntu/Debian)\n"
                       << "           or build from https://www.gnu.org/software/libredwg/\n";
+#endif
         }
         return 0;
     }

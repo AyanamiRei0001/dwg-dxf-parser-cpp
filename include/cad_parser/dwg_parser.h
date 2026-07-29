@@ -7,8 +7,9 @@
  * backends for reading DWG files:
  *
  *  1. libredwg CLI backend (default) — calls the `dwgread` tool from
- *     GNU LibreDWG (https://www.gnu.org/software/libredwg/) via popen().
- *     Requires libredwg tools to be installed on the system.
+ *     GNU LibreDWG (https://www.gnu.org/software/libredwg/) through a
+ *     platform-native subprocess pipe. Requires dwgread on PATH (or an
+ *     explicit path, including dwgread.exe on Windows).
  *
  *  2. libredwg C API backend (optional) — links directly against
  *     libredwg. Enable with -DCAD_USE_LIBREDWG_API=ON in CMake.

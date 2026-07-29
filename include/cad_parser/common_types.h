@@ -16,6 +16,11 @@
 
 namespace cad {
 
+// Portable replacement for the non-standard M_PI macro. Keeping this in the
+// shared model header makes all parser and renderer translation units use the
+// same angle conversion constant on GCC, Clang, and MSVC.
+inline constexpr double kPi = 3.141592653589793238462643383279502884;
+
 // ---- Geometric Primitives ----
 
 /// A 2D point.

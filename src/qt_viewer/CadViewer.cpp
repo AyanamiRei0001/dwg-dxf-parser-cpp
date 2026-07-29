@@ -4,6 +4,7 @@
 #include <QGraphicsTextItem>
 #include <QGraphicsPolygonItem>
 #include <QFontMetricsF>
+#include <QFileInfo>
 #include <QPen>
 #include <QBrush>
 #include <QPainterPath>
@@ -135,8 +136,8 @@ static void appendPolylineSegment(QPainterPath& path, double x1, double y1,
     const double cx = (x1 + x2) * 0.5 - dy * factor;
     const double cy = (y1 + y2) * 0.5 + dx * factor;
     const double radius = std::hypot(x1 - cx, y1 - cy);
-    const double start = std::atan2(y1 - cy, x1 - cx) * 180.0 / M_PI;
-    const double span = -4.0 * std::atan(bulge) * 180.0 / M_PI;
+    const double start = std::atan2(y1 - cy, x1 - cx) * 180.0 / cad::kPi;
+    const double span = -4.0 * std::atan(bulge) * 180.0 / cad::kPi;
     path.arcTo(cx - radius, -cy - radius, radius * 2.0, radius * 2.0,
                start, span);
 }
@@ -238,7 +239,7 @@ struct EntityPainter {
     }
     void operator()(const cad::EllipseEntity& e) {
         double rx=std::hypot(e.major_axis_endpoint.x,e.major_axis_endpoint.y),ry=rx*e.axis_ratio;
-        double ang=std::atan2(e.major_axis_endpoint.y,e.major_axis_endpoint.x)*180.0/M_PI;
+        double ang=std::atan2(e.major_axis_endpoint.y,e.major_axis_endpoint.x)*180.0/cad::kPi;
         auto* it=scene->addEllipse(e.center.x-rx,-e.center.y-ry,rx*2,ry*2,pen,brush);
         it->setTransform(QTransform().translate(e.center.x,-e.center.y).rotate(-ang).translate(-e.center.x,e.center.y));
     }

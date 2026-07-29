@@ -74,7 +74,7 @@ inline int16_t layer_color_index(const Dwg_Color& color) {
 inline Color entity_color(const Dwg_Object_Entity* ent) {
     return ent ? to_color(ent->color) : Color();
 }
-inline double rad2deg(double r) { return r * 180.0 / M_PI; }
+inline double rad2deg(double r) { return r * 180.0 / kPi; }
 
 // Handle references in malformed drawings can point outside libredwg's
 // resolved-reference table. Build a trusted index once instead of rescanning

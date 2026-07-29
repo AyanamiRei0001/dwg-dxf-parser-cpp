@@ -135,7 +135,7 @@ void add_insert_bounds(const InsertEntity& insert, const Drawing& drawing,
     if (it == drawing.blocks.end() || active_blocks.count(insert.block_name)) return;
     active_blocks.insert(insert.block_name);
     const auto& block = it->second;
-    const double angle = insert.rotation * M_PI / 180.0;
+    const double angle = insert.rotation * kPi / 180.0;
     const double cs = std::cos(angle), sn = std::sin(angle);
     for (uint16_t row = 0; row < std::max<uint16_t>(1, insert.row_count); ++row) {
         for (uint16_t column = 0; column < std::max<uint16_t>(1, insert.column_count); ++column) {
@@ -167,7 +167,7 @@ void add_entity_bounds(const Entity& entity, const Drawing& drawing,
             add(value.start.x, value.start.y); add(value.end.x, value.end.y);
         } else if constexpr (std::is_same_v<T, CircleEntity>) {
             for (int i = 0; i < 32; ++i) {
-                const double a = i * 2.0 * M_PI / 32.0;
+                const double a = i * 2.0 * kPi / 32.0;
                 add(value.center.x + value.radius * std::cos(a),
                     value.center.y + value.radius * std::sin(a));
             }
@@ -176,7 +176,7 @@ void add_entity_bounds(const Entity& entity, const Drawing& drawing,
             if (span < 0) span += 360.0;
             const int steps = std::max(2, static_cast<int>(std::ceil(span / 15.0)));
             for (int i = 0; i <= steps; ++i) {
-                const double a = (value.start_angle + span * i / steps) * M_PI / 180.0;
+                const double a = (value.start_angle + span * i / steps) * kPi / 180.0;
                 add(value.center.x + value.radius * std::cos(a),
                     value.center.y + value.radius * std::sin(a));
             }
@@ -188,7 +188,7 @@ void add_entity_bounds(const Entity& entity, const Drawing& drawing,
             double span = value.end_angle - value.start_angle;
             if (span <= 0) span += 360.0;
             for (int i = 0; i <= 48; ++i) {
-                const double a = (value.start_angle + span * i / 48.0) * M_PI / 180.0;
+                const double a = (value.start_angle + span * i / 48.0) * kPi / 180.0;
                 const double x = major * std::cos(a);
                 const double y = major * value.axis_ratio * std::sin(a);
                 add(value.center.x + x * std::cos(rotation) - y * std::sin(rotation),
@@ -340,15 +340,15 @@ struct SvgVisitor {
         double cx = ctx.sx(e.center.x), cy = ctx.sy(e.center.y);
         double r = e.radius * ctx.scale_x;
 
-        double sa = e.start_angle * M_PI / 180.0;
-        double ea = e.end_angle   * M_PI / 180.0;
+        double sa = e.start_angle * kPi / 180.0;
+        double ea = e.end_angle   * kPi / 180.0;
         double x1 = cx + r * std::cos(sa), y1 = cy - r * std::sin(sa);
         double x2 = cx + r * std::cos(ea), y2 = cy - r * std::sin(ea);
 
         // Determine large-arc and sweep flags
         double diff = ea - sa;
-        if (diff < 0) diff += 2 * M_PI;
-        int large = (diff > M_PI) ? 1 : 0;
+        if (diff < 0) diff += 2 * kPi;
+        int large = (diff > kPi) ? 1 : 0;
         int sweep = 0; // CAD counter-clockwise after flipping the Y axis
 
         ctx.os << "<path d=\"M " << x1 << " " << y1
@@ -362,7 +362,7 @@ struct SvgVisitor {
         double cx = ctx.sx(e.center.x), cy = ctx.sy(e.center.y);
         double rx = std::hypot(e.major_axis_endpoint.x, e.major_axis_endpoint.y) * ctx.scale_x;
         double ry = rx * e.axis_ratio;
-        double angle = std::atan2(e.major_axis_endpoint.y, e.major_axis_endpoint.x) * 180.0 / M_PI;
+        double angle = std::atan2(e.major_axis_endpoint.y, e.major_axis_endpoint.x) * 180.0 / kPi;
         ctx.os << "<ellipse cx=\"" << cx << "\" cy=\"" << cy
                << "\" rx=\"" << rx << "\" ry=\"" << ry << "\""
                << " transform=\"rotate(" << -angle << " " << cx << " " << cy << ")\""
@@ -389,7 +389,7 @@ struct SvgVisitor {
                                 / (4.0 * std::abs(from.bulge)) * ctx.scale_x;
             const double angle = 4.0 * std::atan(from.bulge);
             ctx.os << " A " << radius << " " << radius << " 0 "
-                   << (std::abs(angle) > M_PI ? 1 : 0) << " "
+                   << (std::abs(angle) > kPi ? 1 : 0) << " "
                    << (from.bulge > 0 ? 0 : 1) << " " << x << " " << y;
         }
         ctx.os << "\" fill=\"none\" stroke=\"" << color << "\" stroke-width=\""
@@ -444,7 +444,7 @@ struct SvgVisitor {
 
         active_blocks.insert(e.block_name);
         const auto& block = block_it->second;
-        const double radians = e.rotation * M_PI / 180.0;
+        const double radians = e.rotation * kPi / 180.0;
         const double cs = std::cos(radians), sn = std::sin(radians);
         const auto previous_layer = layer;
         const auto previous_color = color;

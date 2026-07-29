@@ -33,7 +33,7 @@ public:
     }
 protected:
     void wheelEvent(QWheelEvent* e) override {
-        double factor = (e->delta() > 0) ? 1.15 : 1.0 / 1.15;
+        double factor = (e->angleDelta().y() > 0) ? 1.15 : 1.0 / 1.15;
         scale(factor, factor);
     }
 };
