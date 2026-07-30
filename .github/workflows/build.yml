@@ -38,6 +38,11 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Install Qt 5
         uses: jurplel/install-qt-action@v4
         with:
@@ -58,12 +63,12 @@ jobs:
           if (-not (Test-Path -LiteralPath $windeployqt)) {
             throw "Qt installation '$qtDir' does not contain bin/windeployqt.exe."
           }
-          .\scripts\build_windows.ps1 -BuildDir build-windows-full -Configuration Release -EnableQtViewer -QtDir $qtDir
+          .\scripts\build_windows.ps1 -BuildDir build-windows-full -Generator Ninja -Configuration Release -EnableQtViewer -QtDir $qtDir
 
       - name: Verify C API and deployed viewer
         shell: pwsh
         run: |
-          $outputDir = Join-Path $env:GITHUB_WORKSPACE "build-windows-full/Release"
+          $outputDir = Join-Path $env:GITHUB_WORKSPACE "build-windows-full"
           $cli = Join-Path $outputDir "cad-parser-cli.exe"
           $viewer = Join-Path $outputDir "cad-viewer.exe"
           $preview = Join-Path $outputDir "viewer-smoke.png"
