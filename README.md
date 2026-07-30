@@ -84,7 +84,7 @@ DWG 解析支持两种后端，CMake 配置时选择其中一种：
 cd dwg-dxf-parser-cpp
 mkdir build && cd build
 cmake ..
-cmake --build build --parallel
+cmake --build . --parallel
 
 # DWG 需要系统安装 libredwg-tools
 sudo apt install libredwg-tools  # Ubuntu/Debian
@@ -101,27 +101,29 @@ cd dwg-dxf-parser-cpp
 # 2. 构建 cad-parser，指定 libredwg 路径
 mkdir build && cd build
 cmake .. -DLIBREDWG_ROOT_DIR=../third_party/libredwg
-cmake --build build --parallel
+cmake --build . --parallel
 ```
 
 `build_libredwg.sh` 会自动：
-1. `git clone` libredwg 到 `third_party/libredwg/`
+1. 初始化固定的 `third_party/libredwg/` 子模块（自定义目录时克隆 0.13.4）
 2. 运行 `autogen.sh` → `./configure --disable-bindings --enable-static`
 3. 编译出 `src/.libs/libredwg.a`
 
-`scripts/build_libredwg.sh` 使用 Autotools 和 Bash，适用于 Linux/Unix 环境。Windows 请使用
-预编译的 LibreDWG C API，或安装 `dwgread.exe` 后使用 CLI 后端。
+`scripts/build_libredwg.sh` 使用 Autotools 和 Bash，适用于 Linux/Unix 环境。Windows 使用
+`scripts/build_windows.ps1` 构建仓库固定的 LibreDWG 子模块，或安装 `dwgread.exe` 后使用
+CLI 后端。
 
 ### Windows：Visual Studio 2022 / MSVC
 
-先安装 CMake 3.16+ 和 Visual Studio 的”Desktop development with C++”工作负载。
+先安装 CMake 3.16+ 和 Visual Studio 的"Desktop development with C++"工作负载。仓库将
+LibreDWG 0.13.4 源码固定为 Git 子模块；普通 clone 后，在构建 C API 前先初始化该子模块。
 
 #### 零依赖（仅 DXF + DWG CLI fallback）
 
 DXF 核心、SVG 导出、CLI 和测试不需要任何第三方 CAD 依赖：
 
 ```powershell
-cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
   -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=OFF
 cmake --build build --config Release --parallel
 cmake -E chdir build ctest -C Release --output-on-failure
@@ -132,11 +134,12 @@ cmake -E chdir build ctest -C Release --output-on-failure
 
 **1. 编译 libredwg（DWG 原生支持）**
 
-仓库 `third_party/libredwg/` 已包含源码，直接用 MSVC 编译：
+初始化固定版本的子模块后，直接用 MSVC 编译：
 
 ```powershell
+git submodule update --init --recursive --depth 1
 cd third_party\libredwg
-cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
   -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release --parallel
 ```
@@ -153,10 +156,10 @@ python -m aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O D:/Qt
 **3. 构建全部目标**
 
 ```powershell
-cmake -S . -B build -G “Visual Studio 17 2022” -A x64 `
+cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
   -DBUILD_TESTS=ON -DBUILD_QT_VIEWER=ON `
-  -DCMAKE_PREFIX_PATH=”D:/Qt/5.15.2/msvc2019_64” `
-  -DLIBREDWG_ROOT_DIR=”third_party/libredwg”
+  -DCMAKE_PREFIX_PATH="D:/Qt/5.15.2/msvc2019_64" `
+  -DLIBREDWG_ROOT_DIR="third_party/libredwg"
 cmake --build build --config Release --parallel
 ```
 
@@ -172,7 +175,9 @@ mkdir build\Release\platforms
 copy D:\Qt\5.15.2\msvc2019_64\plugins\platforms\qwindows.dll build\Release\platforms\
 ```
 
-或者让 CMake 在构建后自动复制 — 参考 `scripts/build_windows.ps1` 脚本。
+也可以用 `scripts/build_windows.ps1` 自动初始化子模块、构建静态 LibreDWG，并在启用查看器时
+实际执行 `windeployqt` 部署 Qt 运行时。使用外部共享 LibreDWG 安装时，脚本也会复制找到的
+`libredwg.dll` 或 `redwg.dll`。
 
 **5. 验证**
 
@@ -196,8 +201,7 @@ cmake -E chdir build ctest -C Release --output-on-failure
 也可以使用仓库内脚本执行同一流程：
 
 ```powershell
-.\scripts\build_windows.ps1 -EnableQtViewer -QtDir “D:/Qt/5.15.2/msvc2019_64” `
-  -LibreDwgRoot “third_party/libredwg”
+.\scripts\build_windows.ps1 -EnableQtViewer -QtDir "D:/Qt/5.15.2/msvc2019_64"
 ```
 
 ### CMake 选项
@@ -207,7 +211,7 @@ cmake -E chdir build ctest -C Release --output-on-failure
 | `CAD_USE_LIBREDWG_API` | ON | 启用 libredwg C API 后端 |
 | `CAD_USE_LIBREDWG_CLI` | ON | CMake 未找到 API 时，启用 CLI 后端 |
 | `LIBREDWG_ROOT_DIR` | 空 | 指定 libredwg 源码树或安装路径 |
-| `BUILD_QT_VIEWER` | ON | 构建 Qt 查看器（需要 Qt5 或 Qt6） |
+| `BUILD_QT_VIEWER` | ON | 构建 Qt5 查看器 |
 | `BUILD_TESTS` | OFF | 构建测试 |
 | `CMAKE_PREFIX_PATH` | 空 | Qt 安装路径，如 `D:/Qt/5.15.2/msvc2019_64` |
 
@@ -314,12 +318,12 @@ dwg-dxf-parser-cpp/
 ├── docs/
 │   └── API_AND_ARCHITECTURE.md      # API、架构与开发指南
 ├── .github/workflows/
-│   └── build.yml                    # Linux / Windows 核心构建与测试
+│   └── build.yml                    # Linux 核心与 Windows 全目标构建/测试
 ├── scripts/
 │   ├── build_libredwg.sh           # libredwg 一键编译脚本
 │   └── build_windows.ps1            # Windows 配置、构建和测试脚本
 ├── third_party/                    # 第三方源码目录
-│   └── libredwg/                   # (git clone 后出现)
+│   └── libredwg/                   # 固定版本的 Git 子模块
 ├── include/cad_parser/
 │   ├── cad_parser.h                # 统一入口
 │   ├── common_types.h              # 14种实体类型 + 图层/块/颜色

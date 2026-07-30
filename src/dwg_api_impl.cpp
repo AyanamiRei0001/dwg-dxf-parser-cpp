@@ -408,7 +408,11 @@ Drawing parse_file(const std::string& filepath,
         Layer lay;
         lay.name = utf8_text(lv, "LAYER", "name", lv->name);
         lay.color_index = layer_color_index(lv->color);
-        lay.frozen = lv->frozen; lay.locked = lv->locked; lay.visible = lv->on;
+        lay.frozen = lv->frozen;
+        lay.locked = lv->locked;
+        // LibreDWG has called this field both "off" and "on" across releases.
+        // A negative layer colour index is the stable API representation of off.
+        lay.visible = lv->color.index >= 0;
         if (!lay.name.empty()) d.layers[lay.name] = lay;
     }
 

@@ -1,10 +1,11 @@
 # FindLibreDWG.cmake
 # ----------------
-# Locates or builds GNU LibreDWG from source.
+# Locates an already-built GNU LibreDWG C API.
 #
 # Input variables:
 #   LIBREDWG_ROOT_DIR    - Hint: path to libredwg install prefix or source tree
-#   LIBREDWG_BUILD_FROM_SOURCE - If ON, try to build from third_party/libredwg
+#   LIBREDWG_INCLUDE_DIR - Explicit directory containing dwg.h
+#   LIBREDWG_LIBRARY     - Explicit library file
 #
 # Output variables:
 #   LIBREDWG_FOUND        - TRUE if found
@@ -12,9 +13,8 @@
 #   LIBREDWG_LIBRARIES    - Libraries to link against
 #   LIBREDWG_VERSION      - Version string
 #
-# This module first tries find_library/find_path for a system install.
-# If not found and LIBREDWG_BUILD_FROM_SOURCE is ON, it builds from the
-# source tree at third_party/libredwg/ using autotools.
+# This module only discovers headers and a library. The repository build
+# scripts are responsible for building the pinned third_party/libredwg source.
 
 # ---- Try system install first ----
 find_path(LIBREDWG_INCLUDE_DIR
@@ -80,8 +80,8 @@ set(LIBREDWG_LIBRARIES "")
 if(NOT LIBREDWG_FIND_QUIETLY)
     message(STATUS "libredwg not found on system.")
     message(STATUS "  To build DWG support from source:")
-    message(STATUS "  1. cd third_party && git clone https://git.savannah.gnu.org/git/libredwg.git")
-    message(STATUS "  2. cd libredwg && ./autogen.sh && ./configure --disable-bindings && make")
+    message(STATUS "  1. git submodule update --init --recursive --depth 1")
+    message(STATUS "  2. Use ./scripts/build_libredwg.sh on Linux/Unix")
     message(STATUS "  3. Re-run cmake with: -DLIBREDWG_ROOT_DIR=third_party/libredwg")
-    message(STATUS "  Or use: ./scripts/build_libredwg.sh")
+    message(STATUS "  On Windows, use .\\scripts\\build_windows.ps1 instead.")
 endif()

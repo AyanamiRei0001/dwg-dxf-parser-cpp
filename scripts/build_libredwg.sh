@@ -20,20 +20,29 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="${1:-${PROJECT_DIR}/third_party/libredwg}"
 
-LIBREDWG_REPO="https://git.savannah.gnu.org/git/libredwg.git"
+LIBREDWG_REPO="https://github.com/LibreDWG/libredwg.git"
+LIBREDWG_VERSION="0.13.4"
 
 echo "=== GNU LibreDWG Build Helper ==="
 echo "Project dir: ${PROJECT_DIR}"
 echo "Target dir:  ${BUILD_DIR}"
 echo ""
 
-# ---- Clone ----
-if [ ! -d "${BUILD_DIR}" ]; then
-    echo "[1/4] Cloning libredwg from ${LIBREDWG_REPO} ..."
+# ---- Fetch source ----
+if [ "${BUILD_DIR}" = "${PROJECT_DIR}/third_party/libredwg" ] && [ -f "${PROJECT_DIR}/.gitmodules" ] && [ ! -f "${BUILD_DIR}/configure.ac" ]; then
+    echo "[1/4] Initializing the pinned LibreDWG ${LIBREDWG_VERSION} submodule ..."
+    git -C "${PROJECT_DIR}" submodule update --init --depth 1 -- third_party/libredwg
+elif [ ! -d "${BUILD_DIR}" ]; then
+    echo "[1/4] Cloning LibreDWG ${LIBREDWG_VERSION} from ${LIBREDWG_REPO} ..."
     mkdir -p "$(dirname "${BUILD_DIR}")"
-    git clone --depth 1 "${LIBREDWG_REPO}" "${BUILD_DIR}"
+    git clone --depth 1 --branch "${LIBREDWG_VERSION}" "${LIBREDWG_REPO}" "${BUILD_DIR}"
 else
     echo "[1/4] Using existing source at ${BUILD_DIR}"
+fi
+
+if [ ! -f "${BUILD_DIR}/configure.ac" ]; then
+    echo "LibreDWG source is missing or incomplete at ${BUILD_DIR}." >&2
+    exit 1
 fi
 
 cd "${BUILD_DIR}"

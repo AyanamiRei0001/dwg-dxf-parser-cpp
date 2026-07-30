@@ -96,6 +96,7 @@ install(DIRECTORY include/ DESTINATION include)
 
 # ---- Qt Viewer (optional) ----
 option(BUILD_QT_VIEWER "Build Qt5 Widgets CAD viewer" ON)
+set(CAD_QT_VIEWER_STATUS "disabled")
 
 if(BUILD_QT_VIEWER)
     # Search common Qt installation directories on Windows
@@ -116,29 +117,20 @@ if(BUILD_QT_VIEWER)
         endforeach()
     endif()
 
-    # Try Qt6 first (with forward compatibility), then Qt5
-    find_package(Qt6 COMPONENTS Widgets QUIET)
-    if(Qt6_FOUND)
-        message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt6_VERSION})")
-        set(QT_VERSION_MAJOR 6)
-        set(QT_LIBS Qt6::Widgets)
-    else()
-        find_package(Qt5 COMPONENTS Widgets QUIET)
-        if(Qt5_FOUND)
-            message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt5_VERSION})")
-            set(QT_VERSION_MAJOR 5)
-            set(QT_LIBS Qt5::Widgets)
-        endif()
+    find_package(Qt5 COMPONENTS Widgets QUIET)
+    if(Qt5_FOUND)
+        message(STATUS "🖥  Qt viewer: ENABLED (Qt${Qt5_VERSION})")
+        set(CAD_QT_VIEWER_STATUS "Qt${Qt5_VERSION}")
     endif()
 
-    if(Qt5_FOUND OR Qt6_FOUND)
+    if(Qt5_FOUND)
         set(QT_VIEWER_SOURCES
             src/qt_viewer/main.cpp
             src/qt_viewer/CadViewer.cpp
         )
 
         add_executable(cad-viewer ${QT_VIEWER_SOURCES})
-        target_link_libraries(cad-viewer PRIVATE cad_parser ${QT_LIBS})
+        target_link_libraries(cad-viewer PRIVATE cad_parser Qt5::Widgets)
         target_include_directories(cad-viewer PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/qt_viewer
         )
@@ -149,13 +141,9 @@ if(BUILD_QT_VIEWER)
         if(WIN32)
             set_target_properties(cad-viewer PROPERTIES WIN32_EXECUTABLE TRUE)
         endif()
-        if(QT_VERSION_MAJOR EQUAL 6)
-            target_compile_definitions(cad-viewer PRIVATE CAD_USE_QT6=1)
-        endif()
-
         install(TARGETS cad-viewer RUNTIME DESTINATION bin)
     else()
-        message(STATUS "⚠ Qt viewer: DISABLED (Qt5/Qt6 Widgets not found)")
+        message(STATUS "⚠ Qt viewer: DISABLED (Qt5 Widgets not found)")
         if(WIN32)
             message(STATUS "  Install Qt5 for Windows: pip install aqtinstall && aqt install-qt windows desktop 5.15.2 win64_msvc2019_64 -O D:/Qt")
         endif()
@@ -175,6 +163,6 @@ message(STATUS "cad-parser configuration summary:")
 message(STATUS "  C++ Standard:  17")
 message(STATUS "  Host platform: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "  DWG backend:   ${CAD_DWG_BACKEND}")
-message(STATUS "  Qt viewer:     ${Qt5_FOUND}")
+message(STATUS "  Qt viewer:     ${CAD_QT_VIEWER_STATUS}")
 message(STATUS "  Install prefix: ${CMAKE_INSTALL_PREFIX}")
 message(STATUS "")

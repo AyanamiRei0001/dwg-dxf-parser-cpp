@@ -28,3 +28,44 @@ jobs:
 
       - name: Test
         run: cmake -E chdir build ctest -C Debug --output-on-failure
+
+  windows-full:
+    name: Windows MSVC Qt5 and LibreDWG C API
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Qt 5
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: 5.15.2
+          arch: win64_msvc2019_64
+          dir: ${{ runner.temp }}/Qt
+
+      - name: Build, test, and deploy full Windows target
+        shell: pwsh
+        run: |
+          $qtDir = Join-Path $env:RUNNER_TEMP "Qt/5.15.2/msvc2019_64"
+          .\scripts\build_windows.ps1 -BuildDir build-windows-full -Configuration Release -EnableQtViewer -QtDir $qtDir
+
+      - name: Verify C API and deployed viewer
+        shell: pwsh
+        run: |
+          $outputDir = Join-Path $env:GITHUB_WORKSPACE "build-windows-full/Release"
+          $cli = Join-Path $outputDir "cad-parser-cli.exe"
+          $viewer = Join-Path $outputDir "cad-viewer.exe"
+          $preview = Join-Path $outputDir "viewer-smoke.png"
+          $drawing = Join-Path $env:GITHUB_WORKSPACE "demo/sample.dxf"
+          & $cli "--check-dwg"
+          if ($LASTEXITCODE -ne 0) { throw "LibreDWG C API check failed." }
+          $viewerArgs = '"{0}" --screenshot "{1}"' -f $drawing, $preview
+          $viewerProcess = Start-Process -FilePath $viewer -ArgumentList $viewerArgs -Wait -PassThru
+          if ($viewerProcess.ExitCode -ne 0) { throw "Deployed Qt viewer smoke test failed." }
+          if (-not (Test-Path -LiteralPath $preview)) { throw "Viewer screenshot was not created." }
+          if ((Get-Item -LiteralPath $preview).Length -le 0) { throw "Viewer screenshot is empty." }
+          if (-not (Test-Path -LiteralPath (Join-Path $outputDir "platforms/qwindows.dll"))) {
+            throw "Qt Windows platform plugin was not deployed."
+          }

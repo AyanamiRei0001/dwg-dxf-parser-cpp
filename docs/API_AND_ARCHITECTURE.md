@@ -231,8 +231,9 @@ C API 直接调用 `dwg_read_file()` 并把 LibreDWG 对象转换为统一模型
 要求较高的场景。CLI 后端启动 `dwgread` 子进程，再解析 JSON 或转换出的 DXF。两者不是运行期主备：
 若最终可执行文件已选中 C API，它遇到解析失败不会再调用 CLI。
 
-Linux 可用仓库内的 `scripts/build_libredwg.sh` 构建 C API。该脚本依赖 Bash/Autotools，不适用于
-原生 Windows；Windows 使用预编译的兼容头文件和库并设置 `LIBREDWG_ROOT_DIR`，或把
+Linux 可用仓库内的 `scripts/build_libredwg.sh` 构建 C API。Windows 使用固定版本的
+`third_party/libredwg` Git 子模块；`scripts/build_windows.ps1` 会初始化它并用 MSVC
+构建静态 C API。也可以提供外部兼容头文件和库并设置 `LIBREDWG_ROOT_DIR`，或把
 `dwgread.exe` 放入 `PATH`。CLI 后端的进程调用和路径搜索均已处理 Linux/Windows 差异。
 
 建议通过 CMake 输出中的 `DWG backend:` 确认实际选择，并用以下命令检查：
@@ -400,8 +401,9 @@ cmake -E chdir build ctest --output-on-failure
 
 Windows 可在 Developer PowerShell 中执行 `./scripts/build_windows.ps1`，或使用
 `cmake -G "Visual Studio 17 2022" -A x64` 配置后再以 `--config Release` 构建和测试。
-`.github/workflows/build.yml` 会在 GitHub Actions 的 Ubuntu 和 Windows 运行器上，以禁用
-LibreDWG C API 和 Qt 的核心配置持续编译并运行这些测试。
+`.github/workflows/build.yml` 会持续运行禁用 LibreDWG C API 和 Qt 的跨平台核心配置；另有
+Windows MSVC 全量作业初始化固定的 LibreDWG 子模块、安装 Qt5、构建 C API 和查看器，并运行
+部署后的查看器截图冒烟检查。
 
 现有测试覆盖 DXF 基础解析、重型多段线转换、曲线 bulge、块、MTEXT 拼接、样条节点、HATCH 边界、
 `TEXT` 第二对齐点、SVG 颜色/块变换/文本清洗以及若干非法输入。
@@ -423,6 +425,7 @@ LibreDWG C API 和 Qt 的核心配置持续编译并运行这些测试。
 - SVG 导出头文件尚未随安装包导出。
 - 样条、图案填充、标注和部分 MTEXT/TEXT 对齐为近似显示，不应作为 CAD 编辑器级保真输出。
 - 当前 Qt 界面没有显式坐标轴/网格，也没有鼠标 CAD 坐标读数。
-- Windows 上不会自动下载或编译 LibreDWG；需要由应用部署方提供匹配工具链的 C API 库，或提供 `dwgread.exe`。
+- Windows 默认通过 `scripts/build_windows.ps1` 初始化并编译固定的 LibreDWG 子模块。使用外部共享
+  C API 时，仍需由应用部署方提供与工具链匹配的库和运行时 DLL，或提供 `dwgread.exe`。
 
 这些限制适合作为后续迭代的任务清单。新增功能时请同时更新本指南、README 中的支持矩阵和对应回归测试。
