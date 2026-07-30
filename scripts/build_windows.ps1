@@ -271,8 +271,15 @@ try {
         $mainCmakeArgs += "-DCAD_USE_LIBREDWG_API=OFF"
     } elseif ($ResolvedLibreDwgRoot) {
         Write-Host "[2/5] Using the supplied LibreDWG installation..."
+        $LibreDwgInclude = Join-Path $ResolvedLibreDwgRoot "include"
+        if (-not (Test-Path -LiteralPath (Join-Path $LibreDwgInclude "dwg.h"))) {
+            throw "Could not find dwg.h under '$LibreDwgInclude'."
+        }
+        $LibreDwgLibrary = Find-LibreDwgLibrary -Root $ResolvedLibreDwgRoot -BuildConfiguration $Configuration
         $mainCmakeArgs += "-DCAD_USE_LIBREDWG_API=ON"
         $mainCmakeArgs += "-DLIBREDWG_ROOT_DIR=$(ConvertTo-CMakePath $ResolvedLibreDwgRoot)"
+        $mainCmakeArgs += "-DLIBREDWG_INCLUDE_DIR=$(ConvertTo-CMakePath $LibreDwgInclude)"
+        $mainCmakeArgs += "-DLIBREDWG_LIBRARY=$(ConvertTo-CMakePath $LibreDwgLibrary)"
         $runtimeLibreDwgRoot = $ResolvedLibreDwgRoot
     } else {
         $LibreDwgSource = Join-Path $ProjectRoot "third_party/libredwg"
