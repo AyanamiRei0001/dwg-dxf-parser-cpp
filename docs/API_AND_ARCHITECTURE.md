@@ -401,9 +401,6 @@ cmake -E chdir build ctest --output-on-failure
 
 Windows 可在 Developer PowerShell 中执行 `./scripts/build_windows.ps1`，或使用
 `cmake -G "Visual Studio 17 2022" -A x64` 配置后再以 `--config Release` 构建和测试。
-`.github/workflows/build.yml` 会持续运行禁用 LibreDWG C API 和 Qt 的跨平台核心配置；另有
-Windows MSVC 全量作业初始化固定的 LibreDWG 子模块、安装 Qt5、构建 C API 和查看器，并运行
-部署后的查看器截图冒烟检查。
 
 现有测试覆盖 DXF 基础解析、重型多段线转换、曲线 bulge、块、MTEXT 拼接、样条节点、HATCH 边界、
 `TEXT` 第二对齐点、SVG 颜色/块变换/文本清洗以及若干非法输入。

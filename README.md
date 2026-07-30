@@ -142,6 +142,7 @@ cd third_party\libredwg
 cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
   -DBUILD_SHARED_LIBS=ON
 cmake --build build --config Release --parallel
+cd ..\..
 ```
 
 产物：`build/Release/libredwg.dll` + `libredwg.lib`
@@ -317,8 +318,6 @@ dwg-dxf-parser-cpp/
 │   └── FindLibreDWG.cmake          # libredwg 查找模块
 ├── docs/
 │   └── API_AND_ARCHITECTURE.md      # API、架构与开发指南
-├── .github/workflows/
-│   └── build.yml                    # Linux 核心与 Windows 全目标构建/测试
 ├── scripts/
 │   ├── build_libredwg.sh           # libredwg 一键编译脚本
 │   └── build_windows.ps1            # Windows 配置、构建和测试脚本
