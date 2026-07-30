@@ -43,12 +43,21 @@ jobs:
         with:
           version: 5.15.2
           arch: win64_msvc2019_64
-          dir: ${{ runner.temp }}/Qt
+          # install-qt-action appends its own Qt directory below this root.
+          dir: ${{ runner.temp }}
+          set-env: true
 
       - name: Build, test, and deploy full Windows target
         shell: pwsh
         run: |
-          $qtDir = Join-Path $env:RUNNER_TEMP "Qt/5.15.2/msvc2019_64"
+          $qtDir = $env:QT_ROOT_DIR
+          if ([string]::IsNullOrWhiteSpace($qtDir)) {
+            throw "install-qt-action did not set QT_ROOT_DIR."
+          }
+          $windeployqt = Join-Path $qtDir "bin/windeployqt.exe"
+          if (-not (Test-Path -LiteralPath $windeployqt)) {
+            throw "Qt installation '$qtDir' does not contain bin/windeployqt.exe."
+          }
           .\scripts\build_windows.ps1 -BuildDir build-windows-full -Configuration Release -EnableQtViewer -QtDir $qtDir
 
       - name: Verify C API and deployed viewer
