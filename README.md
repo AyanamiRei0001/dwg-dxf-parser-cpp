@@ -104,6 +104,21 @@ cmake .. -DLIBREDWG_ROOT_DIR=../third_party/libredwg
 cmake --build . --parallel
 ```
 
+如果不希望安装系统包，可以让 CMake 在项目构建目录内自动编译 LibreDWG，整个过程不会执行
+`make install`，也不会写入 `/usr/lib` 或 `/usr/local`：
+
+```bash
+cmake -S . -B build \
+  -DCAD_BUILD_BUNDLED_LIBREDWG=ON \
+  -DCMAKE_C_COMPILER=/usr/bin/gcc \
+  -DCMAKE_CXX_COMPILER=/usr/bin/g++
+cmake --build build --parallel
+```
+
+该选项要求 `third_party/libredwg/` 已经包含 LibreDWG 源码和 `jsmn/jsmn.h`。普通 Git clone
+可以先执行 `git submodule update --init --recursive --depth 1`；构建产物会留在 `build/`
+和 `third_party/libredwg/src/.libs/` 中。
+
 `build_libredwg.sh` 会自动：
 1. 初始化固定的 `third_party/libredwg/` 子模块（自定义目录时克隆 0.13.4）
 2. 运行 `autogen.sh` → `./configure --disable-bindings --enable-static`
@@ -210,6 +225,7 @@ cmake -E chdir build ctest -C Release --output-on-failure
 |------|--------|------|
 | `CAD_USE_LIBREDWG_API` | ON | 启用 libredwg C API 后端 |
 | `CAD_USE_LIBREDWG_CLI` | ON | CMake 未找到 API 时，启用 CLI 后端 |
+| `CAD_BUILD_BUNDLED_LIBREDWG` | OFF | 在项目构建目录内自动编译 `third_party/libredwg`，不安装到系统 |
 | `LIBREDWG_ROOT_DIR` | 空 | 指定 libredwg 源码树或安装路径 |
 | `BUILD_QT_VIEWER` | ON | 构建 Qt5 查看器 |
 | `BUILD_TESTS` | OFF | 构建测试 |

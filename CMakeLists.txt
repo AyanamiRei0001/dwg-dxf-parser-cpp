@@ -11,6 +11,8 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # ---- Options ----
 option(CAD_USE_LIBREDWG_API "Use libredwg C API for DWG parsing (instead of CLI subprocess)" ON)
 option(CAD_USE_LIBREDWG_CLI  "Use libredwg CLI (dwgread) when the C API is not selected" ON)
+option(CAD_BUILD_BUNDLED_LIBREDWG
+       "Build the bundled LibreDWG source in the build tree when available" OFF)
 
 function(cad_enable_warnings target)
     if(MSVC)
@@ -31,12 +33,62 @@ set(CAD_PARSER_SOURCES
 
 # ---- libredwg integration ----
 set(CAD_DWG_BACKEND "none")  # will be set to "api" or "cli"
+set(CAD_LIBREDWG_BUILD_TARGET "")
 
 if(CAD_USE_LIBREDWG_API)
-    find_package(LibreDWG QUIET)
+    if(CAD_BUILD_BUNDLED_LIBREDWG)
+        set(_bundled_libredwg_root "${CMAKE_CURRENT_SOURCE_DIR}/third_party/libredwg")
+        set(_bundled_libredwg_library "${_bundled_libredwg_root}/src/.libs/libredwg.a")
+
+        if(EXISTS "${_bundled_libredwg_root}/configure" AND
+           EXISTS "${_bundled_libredwg_root}/include/dwg.h" AND
+           EXISTS "${_bundled_libredwg_root}/jsmn/jsmn.h")
+            include(ExternalProject)
+            set(_bundled_libredwg_prefix "${CMAKE_BINARY_DIR}/_deps/libredwg-install")
+            set(_bundled_libredwg_cflags "-fPIC -O2")
+
+            ExternalProject_Add(cad_bundled_libredwg
+                SOURCE_DIR "${_bundled_libredwg_root}"
+                CONFIGURE_COMMAND
+                    "${CMAKE_COMMAND}" -E chdir "${_bundled_libredwg_root}"
+                    "${CMAKE_COMMAND}" -E env
+                    "CC=${CMAKE_C_COMPILER}"
+                    "CFLAGS=${_bundled_libredwg_cflags}"
+                    ./configure
+                    --prefix=${_bundled_libredwg_prefix}
+                    --disable-bindings
+                    --disable-shared
+                    --enable-static
+                    --with-pic
+                BUILD_COMMAND
+                    "${CMAKE_COMMAND}" -E chdir "${_bundled_libredwg_root}"
+                    "${CMAKE_COMMAND}" -E env
+                    "CC=${CMAKE_C_COMPILER}"
+                    "${CMAKE_MAKE_PROGRAM}" -C src
+                INSTALL_COMMAND ""
+                BUILD_BYPRODUCTS "${_bundled_libredwg_library}"
+                LOG_CONFIGURE ON
+                LOG_BUILD ON
+            )
+
+            set(LIBREDWG_FOUND TRUE)
+            set(LIBREDWG_INCLUDE_DIRS "${_bundled_libredwg_root}/include")
+            set(LIBREDWG_LIBRARIES "${_bundled_libredwg_library}")
+            set(LIBREDWG_VERSION "0.13")
+            set(CAD_LIBREDWG_BUILD_TARGET cad_bundled_libredwg)
+            message(STATUS "✅ DWG backend: bundled libredwg C API (builds in ${CMAKE_BINARY_DIR})")
+        else()
+            message(STATUS "⚠ bundled LibreDWG source is incomplete; falling back to normal discovery")
+            find_package(LibreDWG QUIET)
+        endif()
+    else()
+        find_package(LibreDWG QUIET)
+    endif()
 
     if(LIBREDWG_FOUND)
-        message(STATUS "✅ DWG backend: libredwg C API (${LIBREDWG_VERSION})")
+        if(NOT CAD_LIBREDWG_BUILD_TARGET)
+            message(STATUS "✅ DWG backend: libredwg C API (${LIBREDWG_VERSION})")
+        endif()
         set(CAD_DWG_BACKEND "api")
 
         # Add DWG API implementation source
@@ -74,6 +126,9 @@ if(CAD_DWG_BACKEND STREQUAL "api")
     target_include_directories(cad_parser PRIVATE ${LIBREDWG_INCLUDE_DIRS})
     target_link_libraries(cad_parser PUBLIC ${LIBREDWG_LIBRARIES})
     target_compile_definitions(cad_parser PRIVATE CAD_HAS_LIBREDWG_API=1)
+    if(CAD_LIBREDWG_BUILD_TARGET)
+        add_dependencies(cad_parser ${CAD_LIBREDWG_BUILD_TARGET})
+    endif()
 elseif(CAD_DWG_BACKEND STREQUAL "cli")
     target_compile_definitions(cad_parser PRIVATE CAD_HAS_LIBREDWG_CLI=1)
 endif()
