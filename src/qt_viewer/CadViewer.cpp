@@ -377,12 +377,25 @@ void CadViewerWindow::buildScene() {
         painter.setColor(aciToColor(rec.color.index, layerCi));
         std::visit(painter, rec.entity);
     }
+    // QGraphicsScene otherwise derives its scene rect from the item bounds.
+    // ScrollHandDrag then stops exactly at the drawing edge, which makes it
+    // impossible to keep panning after reaching that edge.  onFit() expands
+    // this explicit rect after the initial fit so the view has room to pan.
     QTimer::singleShot(50, this, &CadViewerWindow::onFit);
 }
 
 void CadViewerWindow::onFit() {
-    m_view->fitInView(m_scene->itemsBoundingRect(), Qt::KeepAspectRatio);
+    const QRectF bounds = m_scene->itemsBoundingRect();
+    if (bounds.isEmpty()) return;
+
+    m_view->fitInView(bounds, Qt::KeepAspectRatio);
     if (m_view->transform().m11() > 10) { m_view->resetTransform(); m_view->scale(10,10); }
+
+    // Keep a generous scene margin around the drawing.  The margin is based
+    // on the drawing size so both small and large CAD files remain pannable.
+    const qreal extent = std::max({bounds.width(), bounds.height(), 1.0});
+    const qreal margin = std::min(extent * 100.0, 1.0e9);
+    m_scene->setSceneRect(bounds.adjusted(-margin, -margin, margin, margin));
 }
 void CadViewerWindow::onReset() { m_view->resetTransform(); }
 void CadViewerWindow::onOpen() {
