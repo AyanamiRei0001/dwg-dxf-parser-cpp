@@ -14,6 +14,7 @@
 #include <QTimer>
 #include <QImage>
 #include <QPainter>
+#include <limits>
 #include <sstream>
 #include <iomanip>
 
@@ -397,7 +398,27 @@ void CadViewerWindow::onFit() {
     const qreal margin = std::min(extent * 100.0, 1.0e9);
     m_scene->setSceneRect(bounds.adjusted(-margin, -margin, margin, margin));
 }
-void CadViewerWindow::onReset() { m_view->resetTransform(); }
+void CadViewerWindow::onReset() {
+    m_view->resetTransform();
+    const QRectF bounds = m_scene->itemsBoundingRect();
+    if (bounds.isEmpty()) return;
+
+    // Large drawings often have an empty geometric center.  At true 1:1
+    // scale that would leave the viewport looking blank, so center on the
+    // entity nearest to the drawing center instead.
+    QGraphicsItem* nearest = nullptr;
+    qreal nearestDistance = std::numeric_limits<qreal>::max();
+    for (QGraphicsItem* item : m_scene->items()) {
+        const QRectF itemBounds = item->sceneBoundingRect();
+        if (itemBounds.isEmpty()) continue;
+        const qreal distance = QLineF(itemBounds.center(), bounds.center()).length();
+        if (distance < nearestDistance) {
+            nearestDistance = distance;
+            nearest = item;
+        }
+    }
+    m_view->centerOn(nearest ? nearest->sceneBoundingRect().center() : bounds.center());
+}
 void CadViewerWindow::onOpen() {
     QString path = QFileDialog::getOpenFileName(this, "Open CAD File", "",
         "CAD Files (*.dxf *.dwg *.DXF *.DWG);;All Files (*)");
